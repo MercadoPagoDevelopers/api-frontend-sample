@@ -48,6 +48,10 @@
                     <p>
                         <label for="docType">Tipo de documento</label>
                         <select id="docType" data-checkout="docType"></select>
+                    </p>                    
+                    <p>
+                        <label id="lbl_issuer" for="issuer">Issuer</label>
+                        <select id="issuer" data-checkout="issuer"></select>
                     </p>
                     <p>
                         <label for="docNumber">Número de documento</label>
@@ -85,7 +89,9 @@
             window.Mercadopago.getPaymentMethod({
                 "bin": bin
             }, setPaymentMethod);
-        }
+        } else {
+            document.getElementById('cardNumber').style.background = 'no-repeat #fff';
+        }        
     };
     
     function setPaymentMethod(status, response) {
@@ -93,31 +99,61 @@
             let paymentMethodId = response[0].id;
             let element = document.getElementById('payment_method_id');
             element.value = paymentMethodId;
-            getInstallments();
+        
+            var cardThumbnail = response[0].thumbnail;
+            document.getElementById('cardNumber').style.background = 'url(' + cardThumbnail + ') 98% 50% no-repeat #fff';            
+            window.Mercadopago.getIssuers(paymentMethodId, setIssuers);
         } else {
             alert(`payment method info error: ${response}`);
         }
     }
 
-    function getInstallments(){
-        window.Mercadopago.getInstallments({
-            "payment_method_id": document.getElementById('payment_method_id').value,
-            "amount": parseFloat(document.getElementById('transaction_amount').value)
+    function setIssuers(status, response) {
+        
+        var opt_issue = document.getElementById('issuer');
+        var lbl_issue = document.getElementById('lbl_issuer');
+        
+        if (status == 200) {
+            opt_issue.options.length = 0;
+                        
+            response.forEach( issuer => {
+                let opt = document.createElement('option');
+                opt.text = issuer.name;
+                opt.value = issuer.id;
+                opt_issue.appendChild(opt);
+            });
             
-        }, function (status, response) {
-            if (status == 200) {
-                document.getElementById('installments').options.length = 0;
-                response[0].payer_costs.forEach( installment => {
-                    let opt = document.createElement('option');
-                    opt.text = installment.recommended_message;
-                    opt.value = installment.installments;
-                    document.getElementById('installments').appendChild(opt);
-                });
+           if(opt_issue.options.length <= 1){
+                opt_issue.style.display = "none";
+                lbl_issue.style.display = "none";
             } else {
-                alert(`installments method info error: ${response}`);
+                opt_issue.style.display = "block";
+                lbl_issue.style.display = "block";
             }
-        });
-    }    
+            
+            window.Mercadopago.getInstallments({
+            "payment_method_id": document.getElementById('payment_method_id').value,
+            "amount": parseFloat(document.getElementById('transaction_amount').value),
+            "issuer_id": parseInt(document.getElementById('issuer').value)
+            },setInstallments);
+        } else {
+            alert(`issuers method info error: ${response}`);
+        }
+    }
+
+    function setInstallments(status, response){
+        if (status == 200) {
+            document.getElementById('installments').options.length = 0;
+            response[0].payer_costs.forEach( installment => {
+                let opt = document.createElement('option');
+                opt.text = installment.recommended_message;
+                opt.value = installment.installments;
+                document.getElementById('installments').appendChild(opt);
+            });
+        } else {
+            alert(`installments method info error: ${response}`);
+        }
+    }   
     
     doSubmit = false;
     document.querySelector('#pay').addEventListener('submit', doPay);
